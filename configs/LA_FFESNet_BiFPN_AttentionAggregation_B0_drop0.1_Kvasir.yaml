@@ -1,0 +1,17 @@
+dataset :
+  train : /home/ptn/Storage/FFESNet/data/Kvasir_Splited/trainSplited
+  valid : /home/ptn/Storage/FFESNet/data/Kvasir_Splited/validationSplited
+  test  : /home/ptn/Storage/FFESNet/data/Kvasir_Splited/testSplited
+
+model:
+  model_type  : 'B0'
+  model_arch  : 'FFESNet_BiFPN_AttentionAggregation'
+  model_name  : 'FFESNet_BiFPN_AttentionAggregation_B0_drop0.1_Kvasir'
+
+hyparameters:
+  init_trainsize  : 384
+  batch_size      : 32
+  repeats         : 1
+  n_epochs        : 20
+  learning_rate   : 0.0001
+  drop_rate       : 0.1
