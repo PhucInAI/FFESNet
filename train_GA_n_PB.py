@@ -18,6 +18,9 @@ from FFESNet.utils.dataset import PolypDataset, TestDataset
 from FFESNet.utils.losses.structure_loss import structure_loss
 
 
+datasetTest = ['Kvasir', 'CVC-ColonDB', 'CVC-ClinicDB', 'ETIS-LaribPolypDB', 'CVC-300']
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Arguments of Learning Ability training pipeline')
 
@@ -28,6 +31,7 @@ def parse_args():
     args = parser.parse_args()
 
     return args
+
 
 def load_model(model_arch, model_type, drop_rate):
     """Load model"""
@@ -45,6 +49,14 @@ def load_model(model_arch, model_type, drop_rate):
         from FFESNet.models.FFESNet_A2FPN import FFESNet
     elif model_arch == 'FFESNet_LE_A2FPN':
         from FFESNet.models.FFESNet_LE_A2FPN import FFESNet
+    elif model_arch == 'FFESNet_PAN':
+        from FFESNet.models.FFESNet_PAN import FFESNet
+    elif model_arch == 'FFESNet_LE_PAN':
+        from FFESNet.models.FFESNet_LE_PAN import FFESNet
+    elif model_arch == 'FFESNet_PAN_AttentionAggregation':
+        from FFESNet.models.FFESNet_PAN_AttentionAggregation import FFESNet
+    elif model_arch == 'FFESNet_LE_PAN_AttentionAggregation':
+        from FFESNet.models.FFESNet_LE_PAN_AttentionAggregation import FFESNet
 
     model = FFESNet(model_type=model_type, dropout=drop_rate)
     
@@ -57,99 +69,157 @@ def evaluate(config, model):
     
     global device
 
-    val = 0
-    count = 0
-    smooth = 1e-4
-    
-    # --------------------------------------------------------------------
-    # Set up data
-    # --------------------------------------------------------------------
-    init_trainsize = int(config['hyparameters']['init_trainsize'])
-    val_path = config['dataset']['valid']
-    val_images_path = os.path.join(val_path, 'images')
-    val_masks_path = os.path.join(val_path, 'masks')
-    val_loader = TestDataset(val_images_path,val_masks_path, init_trainsize)
-    
-    # --------------------------------------------------------------------
-    # Validating pipleline
-    # --------------------------------------------------------------------
     model.eval()
 
-    for i in range(val_loader.size):
-        image, gt, name = val_loader.load_data()
-        gt = np.asarray(gt, np.float32)
-        gt /= (gt.max() + 1e-8)
+    val = 0
+    dataset_count = 0
+    datasetValidation = []
+    smooth = 1e-4
+    
+    for data_name in datasetTest:
+        # ----------------------------------------------------------------
+        # Set up data
+        # ----------------------------------------------------------------
+        init_trainsize = int(config['hyparameters']['init_trainsize'])
+        val_path = os.path.join(config['dataset']['valid'], data_name)
+        val_images_path = os.path.join(val_path, 'images')
+        val_masks_path = os.path.join(val_path, 'masks')
+        val_loader = TestDataset(val_images_path,val_masks_path, init_trainsize)
+        
+        # ----------------------------------------------------------------
+        # Validating pipleline
+        # ----------------------------------------------------------------
 
-        image = image.to(device)
-        
-        pred = model(image)
-        pred = F.upsample(pred, size=gt.shape, mode='bilinear', align_corners = False)
-        
-        pred = pred.sigmoid()
-        threshold = torch.tensor([0.5]).to(device)
-        pred = (pred > threshold).float() * 1
-        pred = pred.data.cpu().numpy().squeeze()
-        pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
-        
-        target = np.array(gt)
-        input_flat = np.reshape(pred,(-1))
-        target_flat = np.reshape(target,(-1))
- 
-        intersection = (input_flat*target_flat)
-        loss =  (2 * intersection.sum() + smooth) / (pred.sum() + target.sum() + smooth)
+        count = 0
+        total_meanDice = 0
 
-        a =  '{:.4f}'.format(loss)
-        a = float(a)
-        
-        val = val + a
-        count = count + 1
-        
+        for i in range(val_loader.size):
+            image, gt, name = val_loader.load_data()
+            gt = np.asarray(gt, np.float32)
+            gt /= (gt.max() + 1e-8)
+
+            image = image.to(device)
+            
+            pred = model(image)
+            pred = F.upsample(pred, size=gt.shape, mode='bilinear', align_corners = False)
+            
+            pred = pred.sigmoid()
+            threshold = torch.tensor([0.5]).to(device)
+            pred = (pred > threshold).float() * 1
+            pred = pred.data.cpu().numpy().squeeze()
+            pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
+            
+            target = np.array(gt)
+            input_flat = np.reshape(pred,(-1))
+            target_flat = np.reshape(target,(-1))
+    
+            intersection = (input_flat*target_flat)
+            loss =  (2 * intersection.sum() + smooth) / (pred.sum() + target.sum() + smooth)
+
+            Dice =  '{:.4f}'.format(loss)
+            Dice = float(Dice)
+            total_meanDice = total_meanDice + Dice
+            count = count + 1
+
+        datasetValidation.append(total_meanDice/count)
+        val = val + total_meanDice/count
+        dataset_count = dataset_count +1
+            
     model.train()
     
-    return val/count
+    return val/dataset_count, datasetValidation
 
 
-def save_result(numIters, config, model_path):
+def save_result(numIters, config, model_folder):
     global device
     global output_path
 
-    save_path = os.path.join(output_path, str(numIters).zfill(2), 'predict')
-    os.makedirs(save_path, exist_ok=True)
+    # --------------------------------------------------------------------
+    # Predict GA
+    # --------------------------------------------------------------------
+    for data_name in datasetTest:
 
-    # --------------------------------------------------------------------
-    # Load model
-    # --------------------------------------------------------------------
-    model = torch.load(model_path)
-    model.eval()
+        save_path = os.path.join(output_path, str(numIters).zfill(2), 'predict_GA', data_name)
+        os.makedirs(save_path, exist_ok=True)
 
-    # --------------------------------------------------------------------
-    # Set up data
-    # --------------------------------------------------------------------
-    init_trainsize = int(config['hyparameters']['init_trainsize'])
-    test_path = config['dataset']['test']
-    test_images_path = os.path.join(test_path, 'images')
-    test_masks_path = os.path.join(test_path, 'masks')
-    test_loader = TestDataset(test_images_path, test_masks_path, init_trainsize)
-    
+        # ----------------------------------------------------------------
+        # Load model
+        # ----------------------------------------------------------------
+        model_path = os.path.join(model_folder, 'model_GA.pt'.format(data_name))
+        model = torch.load(model_path)
+        model.eval()
 
-    # --------------------------------------------------------------------
-    # Testing pipeline
-    # --------------------------------------------------------------------
-    for i in range(test_loader.size):
-        image, gt, name = test_loader.load_data()
-        gt = np.asarray(gt, np.float32)
-        gt /= (gt.max() + 1e-8)
-        image = image.to(device)
-
-        pred = model(image)
-        pred = F.upsample(pred, size=gt.shape, mode='bilinear', align_corners=False)
-        pred = pred.sigmoid()
-        threshold = torch.tensor([0.5]).to(device)
-        pred = (pred > threshold).float() * 1
-        pred = pred.data.cpu().numpy().squeeze()
-        pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
+        # ----------------------------------------------------------------
+        # Set up data
+        # ----------------------------------------------------------------
+        init_trainsize = int(config['hyparameters']['init_trainsize'])
+        test_path = os.path.join(config['dataset']['test'], data_name)
+        test_images_path = os.path.join(test_path, 'images')
+        test_masks_path = os.path.join(test_path, 'masks')
+        test_loader = TestDataset(test_images_path, test_masks_path, init_trainsize)
         
-        imageio.imwrite(os.path.join(save_path, name),img_as_ubyte(pred))
+        # ----------------------------------------------------------------
+        # Testing pipeline
+        # ----------------------------------------------------------------
+        for i in range(test_loader.size):
+            image, gt, name = test_loader.load_data()
+            gt = np.asarray(gt, np.float32)
+            gt /= (gt.max() + 1e-8)
+            image = image.to(device)
+
+            pred = model(image)
+            pred = F.upsample(pred, size=gt.shape, mode='bilinear', align_corners=False)
+            pred = pred.sigmoid()
+            threshold = torch.tensor([0.5]).to(device)
+            pred = (pred > threshold).float() * 1
+            pred = pred.data.cpu().numpy().squeeze()
+            pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
+            
+            imageio.imwrite(os.path.join(save_path, name),img_as_ubyte(pred))
+
+
+    # --------------------------------------------------------------------
+    # Predict PB
+    # --------------------------------------------------------------------
+    for data_name in datasetTest:
+
+        save_path = os.path.join(output_path, str(numIters).zfill(2), 'predict_PB', data_name)
+        os.makedirs(save_path, exist_ok=True)
+
+        # ----------------------------------------------------------------
+        # Load model
+        # ----------------------------------------------------------------
+        model_path = os.path.join(model_folder, 'model_PB_{}.pt'.format(data_name))
+        model = torch.load(model_path)
+        model.eval()
+
+        # ----------------------------------------------------------------
+        # Set up data
+        # ----------------------------------------------------------------
+        init_trainsize = int(config['hyparameters']['init_trainsize'])
+        test_path = os.path.join(config['dataset']['test'], data_name)
+        test_images_path = os.path.join(test_path, 'images')
+        test_masks_path = os.path.join(test_path, 'masks')
+        test_loader = TestDataset(test_images_path, test_masks_path, init_trainsize)
+        
+        # ----------------------------------------------------------------
+        # Testing pipeline
+        # ----------------------------------------------------------------
+        for i in range(test_loader.size):
+            image, gt, name = test_loader.load_data()
+            gt = np.asarray(gt, np.float32)
+            gt /= (gt.max() + 1e-8)
+            image = image.to(device)
+
+            pred = model(image)
+            pred = F.upsample(pred, size=gt.shape, mode='bilinear', align_corners=False)
+            pred = pred.sigmoid()
+            threshold = torch.tensor([0.5]).to(device)
+            pred = (pred > threshold).float() * 1
+            pred = pred.data.cpu().numpy().squeeze()
+            pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
+            
+            imageio.imwrite(os.path.join(save_path, name),img_as_ubyte(pred))
 
 
 def plot_result(result_lst, save_path):
@@ -218,6 +288,7 @@ def train_loop(config, numIters):
     # --------------------------------------------------------------------
     losses = []
     coeff_max = 0
+    datasetValidation_max = [0,0,0,0,0]
     
     # --------------------------------------------------------------------
     # Set up data
@@ -276,22 +347,37 @@ def train_loop(config, numIters):
 
             # ------------------------------------------------------------
             # Log loss of valid
-            validation_coeff = evaluate(config, model)
+            validation_coeff, datasetValidation = evaluate(config, model)
             logger.info('Epoch [{:5d}/{:5d}] | validation coeffient: {:6.6f} '.format(num_epoch, n_epochs, validation_coeff))
             
             # ------------------------------------------------------------
-            # Save model if get better validation
+            # Save model GA if get better validation
             if coeff_max < validation_coeff:
                 coeff_max = validation_coeff
                 
                 save_model_folder = os.path.join(output_path, str(numIters).zfill(2))
                 os.makedirs(save_model_folder, exist_ok=True)
-                save_model_path = os.path.join(save_model_folder, 'model_{}_{}.pt'.format(numIters, num_epoch))
+                save_model_path = os.path.join(save_model_folder, 'model_GA.pt')
                 torch.save(model, save_model_path)
-                logger.info('Save Learning Ability Optimized Model at Epoch [{:5d}/{:5d}]'.format(num_epoch, n_epochs))
+                logger.info('Save Average Optimized Model at Epoch [{:5d}/{:5d}]'.format(num_epoch, n_epochs))
+
+            
+            # ------------------------------------------------------------
+            # Save model PB if get better datasetValidation
+            for dataset_index, dataset_name in enumerate(datasetTest):
+                if datasetValidation_max[dataset_index] < datasetValidation[dataset_index]:
+                    datasetValidation_max[dataset_index] = datasetValidation[dataset_index]
+                    
+                    save_model_folder = os.path.join(output_path, str(numIters).zfill(2))
+                    os.makedirs(save_model_folder, exist_ok=True)
+                    save_model_path = os.path.join(save_model_folder, 'model_PB_{}.pt'.format(dataset_name))
+                    torch.save(model, save_model_path)
+                    logger.info('Save Optimized {} Model at Epoch [{:5d}/{:5d}, with coefficient: {:6.6f}]'
+                                .format(dataset_name, num_epoch, n_epochs, datasetValidation[dataset_index]))
 
 
-    save_result(numIters, config, save_model_path)
+
+    save_result(numIters, config, save_model_folder)
     loss_path = os.path.join(output_path, 'loss_{}.png'.format(str(numIters)).zfill(2))
     plot_result(losses, loss_path)     
     return losses, coeff_max
