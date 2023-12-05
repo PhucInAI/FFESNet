@@ -36,6 +36,7 @@ class SymmetricFocalLoss(nn.Module):
     def forward(self, y_pred, y_true):
 
         axis = identify_axis(y_true.size())  
+        # y_pred = torch.sigmoid(y_pred)
         y_pred = torch.clamp(y_pred, self.epsilon, 1. - self.epsilon)
         cross_entropy = -y_true * torch.log(y_pred)
 
@@ -106,6 +107,7 @@ class SymmetricFocalTverskyLoss(nn.Module):
         self.epsilon = epsilon
 
     def forward(self, y_pred, y_true):
+        # y_pred = torch.sigmoid(y_pred)
         y_pred = torch.clamp(y_pred, self.epsilon, 1. - self.epsilon)
         axis = identify_axis(y_true.size())
         

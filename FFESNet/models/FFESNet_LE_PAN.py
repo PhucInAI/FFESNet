@@ -7,9 +7,9 @@ import torch.nn.functional as F
 from torch import nn
 from mmcv.cnn import ConvModule
 
-import mit
+import FFESNet.models.mit as mit
 # from pyramids.bifpn import 
-from pyramids.pan import PAN
+from FFESNet.models.pyramids.pan import PAN
 
 class FFESNet(nn.Module):
     """
