@@ -29,6 +29,28 @@ def parse_args():
 
     return args
 
+
+def load_loss(loss_name):
+    """Load loss function"""
+
+    if loss_name == 'structure':
+        from FFESNet.utils.losses.structure_loss import structure_loss as loss_function
+    elif loss_name == 'dice_bce':
+        from FFESNet.utils.losses.dice_bce_loss import dice_bce_loss as loss_function
+    elif loss_name == 'tversky':
+        from FFESNet.utils.losses.tversky_loss import tversky_loss as loss_function
+    elif loss_name == 'tversky_bce':
+        from FFESNet.utils.losses.tversky_bce_loss import tversky_bce_loss as loss_function
+    elif loss_name == 'sufl':
+        from FFESNet.utils.losses.loss_classes import SymmetricUnifiedFocalLoss
+        loss_function = SymmetricUnifiedFocalLoss()
+    else:
+        print('Do not know loss name')
+        exit()
+
+    return loss_function
+
+
 def load_model(model_arch, model_type, drop_rate):
     """Load model"""
 
@@ -165,7 +187,7 @@ def plot_result(result_lst, save_path):
     
     # Save the plot to a file
     plt.savefig(save_path)
-    plt.show()
+    # plt.show()
 
 
 def train_loop(config, numIters):
@@ -256,7 +278,12 @@ def train_loop(config, numIters):
         out = model(images)
         out = F.interpolate(out, size=masks.shape[2:], mode='bilinear', align_corners=False)
         
-        loss = structure_loss(out, masks)
+        if 'loss' in config['hyparameters']:
+            loss_name = config['hyparameters']['loss']
+        else:
+            loss_name = 'structure'
+        loss_function = load_loss(loss_name)
+        loss = loss_function(out, masks)
         loss.backward()
         model_optimizer.step() 
         
