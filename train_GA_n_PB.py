@@ -18,16 +18,13 @@ from FFESNet.utils.dataset import PolypDataset, TestDataset
 from FFESNet.utils.losses.structure_loss import structure_loss
 
 
-datasetTest = ['Kvasir', 'CVC-ColonDB', 'CVC-ClinicDB', 'ETIS-LaribPolypDB', 'CVC-300']
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description='Arguments of Learning Ability training pipeline')
 
     parser.add_argument('--config', '-c', type=str, required=True       , help='Path of the config file')
     parser.add_argument('--device', '-d', type=int, required=True       , help='Device to use')
     parser.add_argument('--output', '-o', type=str, default='./runs'    , help='Path of ouput folder')
-
+    parser.add_argument('--type'  , '-t', type=str, default='PB'        , help='Type of training, PB or GA')
     args = parser.parse_args()
 
     return args
@@ -409,6 +406,13 @@ def main():
 
     global device
     global config
+    global datasetTest
+
+    if args.type == 'PB':
+        datasetTest = ['Kvasir', 'CVC-ColonDB', 'CVC-ClinicDB', 'ETIS-LaribPolypDB', 'CVC-300']
+    else: # GA
+        datasetTest = ['CVC-ColonDB', 'ETIS-LaribPolypDB']
+
 
     if torch.cuda.is_available():
         device = torch.device("cuda:" + str(args.device))
