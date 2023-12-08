@@ -187,7 +187,6 @@ def plot_result(result_lst, save_path):
     
     # Save the plot to a file
     plt.savefig(save_path)
-    # plt.show()
 
 
 def train_loop(config, numIters):

@@ -1,0 +1,17 @@
+dataset :
+  train : /home/ptn/Storage/FFESNet/data/TrainDataset/Mix-Kvasir-ClinicDB
+  valid : /home/ptn/Storage/FFESNet/data/TestDataset
+  test  : /home/ptn/Storage/FFESNet/data/TestDataset
+
+model:
+  model_type  : 'B4'
+  model_arch  : 'FFESNet_LE_PAN_AttentionAggregation'
+  model_name  : 'FFESNet_LE_PAN_AttentionAggregation_B4_drop0.2_Kvasir'
+
+hyparameters:
+  init_trainsize  : 384
+  batch_size      : 16
+  repeats         : 2
+  n_epochs        : 100
+  learning_rate   : 0.0001
+  drop_rate       : 0.2
