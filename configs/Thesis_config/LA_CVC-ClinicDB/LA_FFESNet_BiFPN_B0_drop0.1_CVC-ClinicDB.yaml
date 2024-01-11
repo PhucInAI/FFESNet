@@ -1,0 +1,17 @@
+dataset :
+  train : /home/ptn/Storage/FFESNet/data/CVC-ClinicDB_Splited/trainSplited
+  valid : /home/ptn/Storage/FFESNet/data/CVC-ClinicDB_Splited/validationSplited
+  test  : /home/ptn/Storage/FFESNet/data/CVC-ClinicDB_Splited/testSplited
+
+model:
+  model_type  : 'B0'
+  model_arch  : 'FFESNet_BiFPN'
+  model_name  : 'FFESNet_BiFPN_B0_drop0.1_CVC-ClinicDB'
+
+hyparameters:
+  init_trainsize  : 384
+  batch_size      : 32
+  repeats         : 1
+  n_epochs        : 100
+  learning_rate   : 0.00001
+  drop_rate       : 0.1
